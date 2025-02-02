@@ -14,6 +14,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 
+const GOOGLE_SHEETS_URL = "https://script.google.com/macros/s/AKfycbzgpHczfbjp-sE8DjTxb4qu_WVlz_yN1zIFjojOqgNtUHqsIdGhoMQGiCL_voYAp6ZSEQ/exec";
+
 const services = {
   nails: [
     { name: "Gel na tips", price: 120.0 },
@@ -31,8 +33,6 @@ const services = {
 
 const allTimes = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
 
-type BookedTimes = Record<string, string[]>;
-
 export default function BookingPage() {
   const [selectedService, setSelectedService] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("credit");
@@ -40,22 +40,14 @@ export default function BookingPage() {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [time, setTime] = useState("");
   const [availableTimes, setAvailableTimes] = useState<string[]>(allTimes);
-  const [bookedTimes, setBookedTimes] = useState<BookedTimes>(() => {
-    if (typeof window !== "undefined") {
-      return JSON.parse(localStorage.getItem("bookings") || "{}");
-    }
-    return {};
-  });
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
 
   useEffect(() => {
     if (date) {
-      const dateKey = format(date, "yyyy-MM-dd");
-      const busyTimes = bookedTimes[dateKey] || [];
-      setAvailableTimes(allTimes.filter((t) => !busyTimes.includes(t)));
+      setAvailableTimes(allTimes);
     }
-  }, [date, bookedTimes]);
+  }, [date]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,7 +61,10 @@ export default function BookingPage() {
       const selectedServiceData = [...services.nails, ...services.eyebrows].find(
         (service) => service.name === selectedService
       );
-      if (!selectedServiceData) throw new Error("Serviço não encontrado");
+
+      if (!selectedServiceData) {
+        throw new Error("Serviço não encontrado");
+      }
 
       const bookingData = {
         nome: name,
@@ -82,7 +77,7 @@ export default function BookingPage() {
 
       console.log("✅ Enviando agendamento para Google Sheets...", bookingData);
 
-      const response = await fetch("https://script.google.com/macros/s/AKfycbyLb9usiPsR9vOxk9sprjWEf19w4x-5B_bhDftOrybCOmcFRywXALT4RzL7TeUR5k0Dcg/exec", {
+      const response = await fetch(GOOGLE_SHEETS_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(bookingData),
@@ -92,7 +87,6 @@ export default function BookingPage() {
       if (result.status !== "success") throw new Error("Erro ao salvar no Google Sheets");
 
       console.log("✅ Agendamento salvo no Google Sheets:", result);
-
       alert("Agendamento confirmado!");
 
     } catch (error: any) {
@@ -135,20 +129,22 @@ export default function BookingPage() {
 
               <div className="space-y-2">
                 <Label>Serviço</Label>
-                <Select value={selectedService} onValueChange={setSelectedService} required>
+                <Select onValueChange={setSelectedService} required>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o serviço" />
                   </SelectTrigger>
                   <SelectContent>
-                    {services.nails.map((service) => (
-                      <SelectItem key={service.name} value={service.name}>
-                        {service.name} - R${service.price.toFixed(2)}
-                      </SelectItem>
-                    ))}
-                    {services.eyebrows.map((service) => (
-                      <SelectItem key={service.name} value={service.name}>
-                        {service.name} - R${service.price.toFixed(2)}
-                      </SelectItem>
+                    {Object.entries(services).map(([category, items]) => (
+                      <div key={category}>
+                        <SelectItem value={`section-${category}`} disabled className="font-semibold">
+                          {category === "nails" ? "Unhas" : "Sobrancelhas"}
+                        </SelectItem>
+                        {items.map((service) => (
+                          <SelectItem key={service.name} value={service.name}>
+                            {service.name} - R${service.price.toFixed(2)}
+                          </SelectItem>
+                        ))}
+                      </div>
                     ))}
                   </SelectContent>
                 </Select>
@@ -177,14 +173,14 @@ export default function BookingPage() {
 
               <div className="space-y-2">
                 <Label>Horário</Label>
-                <Select value={time} onValueChange={setTime} required>
+                <Select value={time} onValueChange={setTime} disabled={!date}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione um horário" />
+                    <SelectValue placeholder={date ? "Selecione" : "Escolha a data primeiro"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableTimes.map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}
+                    {availableTimes.map((time) => (
+                      <SelectItem key={time} value={time}>
+                        {time}
                       </SelectItem>
                     ))}
                   </SelectContent>
