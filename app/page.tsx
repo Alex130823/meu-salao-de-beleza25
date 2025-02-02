@@ -14,7 +14,7 @@ import { Logo } from "@/components/Logo";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import Script from "next/script";
 
-const googleSheetsURL = "https://script.google.com/macros/s/AKfycby8RG3ik1FfqaY1HdMDh6YXZQnF0BfCMtoLAarC6KPNfLYc0_f3cghMloRbwXD0OT3QAw/exec";
+const googleSheetsURL = "https://script.google.com/macros/s/AKfycbyLb9usiPsR9vOxk9sprjWEf19w4x-5B_bhDftOrybCOmcFRywXALT4RzL7TeUR5k0Dcg/exec";
 
 const services = {
   nails: [
