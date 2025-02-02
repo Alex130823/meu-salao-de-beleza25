@@ -1,20 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { format } from "date-fns";
 import { CalendarIcon, CreditCard, Banknote, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { Logo } from "@/components/Logo";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import Script from "next/script";
-
-const googleSheetsURL = "https://script.google.com/macros/s/AKfycbyLb9usiPsR9vOxk9sprjWEf19w4x-5B_bhDftOrybCOmcFRywXALT4RzL7TeUR5k0Dcg/exec";
+import { Logo } from "@/components/Logo";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
 
 const services = {
   nails: [
@@ -33,63 +31,70 @@ const services = {
 
 const allTimes = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
 
+type BookedTimes = Record<string, string[]>;
+
 export default function BookingPage() {
   const [selectedService, setSelectedService] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("credit");
   const [loading, setLoading] = useState(false);
-  const [date, setDate] = useState<Date | undefined>();
+  const [date, setDate] = useState<Date | undefined>(new Date());
   const [time, setTime] = useState("");
   const [availableTimes, setAvailableTimes] = useState<string[]>(allTimes);
+  const [bookedTimes, setBookedTimes] = useState<BookedTimes>(() => {
+    if (typeof window !== "undefined") {
+      return JSON.parse(localStorage.getItem("bookings") || "{}");
+    }
+    return {};
+  });
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+
+  useEffect(() => {
+    if (date) {
+      const dateKey = format(date, "yyyy-MM-dd");
+      const busyTimes = bookedTimes[dateKey] || [];
+      setAvailableTimes(allTimes.filter((t) => !busyTimes.includes(t)));
+    }
+  }, [date, bookedTimes]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      if (!name.trim() || !phone.trim()) throw new Error("Preencha seu nome e telefone");
-      if (!date) throw new Error("Selecione uma data");
-      if (!time) throw new Error("Selecione um horário");
+      if (!name || !phone) throw new Error("Preencha seu nome e telefone");
+      if (!date || !time) throw new Error("Selecione data e horário");
       if (!selectedService) throw new Error("Selecione um serviço");
 
-      console.log("✅ Enviando agendamento para Google Sheets...");
+      const selectedServiceData = [...services.nails, ...services.eyebrows].find(
+        (service) => service.name === selectedService
+      );
+      if (!selectedServiceData) throw new Error("Serviço não encontrado");
+
       const bookingData = {
         nome: name,
         telefone: phone,
         data: format(date, "yyyy-MM-dd"),
         horario: time,
-        servico: selectedService,
+        servico: selectedServiceData.name,
         status: "Pendente",
       };
 
-      await fetch(googleSheetsURL, {
+      console.log("✅ Enviando agendamento para Google Sheets...", bookingData);
+
+      const response = await fetch("https://script.google.com/macros/s/AKfycbyLb9usiPsR9vOxk9sprjWEf19w4x-5B_bhDftOrybCOmcFRywXALT4RzL7TeUR5k0Dcg/exec", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(bookingData),
       });
 
-      console.log("📢 Criando pagamento no Mercado Pago...");
-      const response = await fetch("/api/create-preference", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: selectedService,
-          price: 100,
-          paymentMethod,
-          date: format(date, "yyyy-MM-dd"),
-          time,
-          clientName: name,
-          clientPhone: phone,
-        }),
-      });
-
       const result = await response.json();
+      if (result.status !== "success") throw new Error("Erro ao salvar no Google Sheets");
 
-      if (!response.ok) throw new Error(result.message || "Erro ao criar preferência de pagamento");
+      console.log("✅ Agendamento salvo no Google Sheets:", result);
 
-      console.log("✅ Pagamento criado:", result);
-      window.location.href = result.init_point;
+      alert("Agendamento confirmado!");
+
     } catch (error: any) {
       console.error("❌ Erro ao processar agendamento:", error.message);
       alert(`Erro: ${error.message}`);
@@ -107,69 +112,86 @@ export default function BookingPage() {
         </div>
         <Card className="mx-auto max-w-xl">
           <CardHeader>
-            <CardTitle>Agendamento</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-2xl">
+              <CalendarIcon className="h-6 w-6 text-pink-600" />
+              Agendamento
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
-              <Label>Nome:</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} required />
+              <div className="space-y-2">
+                <Label>Dados do Cliente</Label>
+                <div className="grid grid-cols-2 gap-4">
+                  <Input placeholder="Nome completo" value={name} onChange={(e) => setName(e.target.value)} required />
+                  <Input
+                    placeholder="WhatsApp (11) 98765-4321"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    required
+                    type="tel"
+                  />
+                </div>
+              </div>
 
-              <Label>WhatsApp:</Label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} required type="tel" />
+              <div className="space-y-2">
+                <Label>Serviço</Label>
+                <Select value={selectedService} onValueChange={setSelectedService} required>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o serviço" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {services.nails.map((service) => (
+                      <SelectItem key={service.name} value={service.name}>
+                        {service.name} - R${service.price.toFixed(2)}
+                      </SelectItem>
+                    ))}
+                    {services.eyebrows.map((service) => (
+                      <SelectItem key={service.name} value={service.name}>
+                        {service.name} - R${service.price.toFixed(2)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-              <Label>Serviço:</Label>
-              <Select onValueChange={setSelectedService} required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um serviço" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="section-nails" disabled className="font-semibold">
-                    Unhas
-                  </SelectItem>
-                  {services.nails.map((service) => (
-                    <SelectItem key={service.name} value={service.name}>
-                      {service.name} - R${service.price.toFixed(2)}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="section-eyebrows" disabled className="font-semibold">
-                    Sobrancelhas
-                  </SelectItem>
-                  {services.eyebrows.map((service) => (
-                    <SelectItem key={service.name} value={service.name}>
-                      {service.name} - R${service.price.toFixed(2)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <Label>Data</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {date ? format(date, "dd/MM/yyyy") : "Selecione"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={date}
+                      onSelect={setDate}
+                      initialFocus
+                      disabled={{ before: new Date() }}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
 
-              <Label>Data:</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {date ? format(date, "dd/MM/yyyy") : "Selecione"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar mode="single" selected={date} onSelect={setDate} initialFocus disabled={{ before: new Date() }} />
-                </PopoverContent>
-              </Popover>
+              <div className="space-y-2">
+                <Label>Horário</Label>
+                <Select value={time} onValueChange={setTime} required>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um horário" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableTimes.map((t) => (
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-              <Label>Horário:</Label>
-              <Select value={time} onValueChange={setTime} required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um horário" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableTimes.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Button type="submit" disabled={loading}>
+              <Button type="submit" className="w-full bg-pink-600 hover:bg-pink-700" disabled={loading}>
                 {loading ? "Processando..." : "Confirmar Agendamento"}
               </Button>
             </form>
