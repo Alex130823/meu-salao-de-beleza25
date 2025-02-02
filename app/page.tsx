@@ -14,7 +14,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 
-const GOOGLE_SHEETS_URL = "https://script.google.com/macros/s/AKfycbzgpHczfbjp-sE8DjTxb4qu_WVlz_yN1zIFjojOqgNtUHqsIdGhoMQGiCL_voYAp6ZSEQ/exec";
+const GOOGLE_SHEETS_URL = "https://script.google.com/macros/s/AKfycbwn27NuRORAk6P_4rA0zziybtSJu8ThrSfXiOhVQI_4TsC_JeqP3HrD-Vsoulokb_eh6g/exec";
 
 const services = {
   nails: [
